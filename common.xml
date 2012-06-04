@@ -1,0 +1,101 @@
+<?xml version="1.0"?>
+<project name="Magento Build - Common" default="flush-cache">
+    <taskdef name="lokey-symlink" classname="Lokey_SymlinkTask" classpath="${project.basedir}/build/classes"/>
+    <taskdef name="lokey-resolvepath" classname="Lokey_ResolvePathTask" classpath="${project.basedir}/build/classes"/>
+
+    <!-- project.basedir refers to the root directory of the project-->
+    <fail unless="project.basedir" message="The project.basedir property MUST be set"/>
+    <lokey-resolvepath propertyName="project.basedir" path="${project.basedir}"/>
+
+    <!-- load project-specific properties -->
+    <property file="${project.basedir}/build.properties"/>
+
+    <!-- project.deploydir refers to the directory where the magento archive will be extracted and patch and the project code linked into -->
+    <fail unless="project.deploydir" message="The project.deploydir property MUST be set"/>
+    <lokey-resolvepath propertyName="project.deploydir" path="${project.deploydir}"/>
+
+    <target name="rebuild" depends="reset, relink-deployment, flush-cache"/>
+
+    <target name="relink" depends="relink-deployment, flush-cache"/>
+
+    <target name="reset">
+        <!-- project.magento_archive refers to a file that is the base magento version for the project -->
+        <fail unless="project.magento_archive" message="The project.magento_archive property MUST be set"/>
+        <lokey-resolvepath propertyName="project.magento_archive" path="${project.magento_archive}"/>
+        <if>
+            <not>
+                <available file="${project.magento_archive}" type="file" followSymlinks="true"/>
+            </not>
+            <then>
+                <fail message="The file referenced by project.magento_archive MUST exist and be readable (${project.magento_archive})"/>
+            </then>
+        </if>
+        <lokey-resolvepath propertyName="relink.src" path="${project.basedir}"/>
+        <delete dir="${project.deploydir}"/>
+        <mkdir dir="${project.deploydir}"/>
+        <!-- using native tar command as it is significantly faster than the PEAR version -->
+        <exec dir="${project.deploydir}" checkreturn="true" command="tar --strip-components=1 -xf ${project.magento_archive}" logoutput="true"/>
+        <foreach target="apply-patch" param="patch.path" absparam="patch.abspath">
+            <fileset dir="${project.basedir}">
+                <include name="*.patch"/>
+            </fileset>
+        </foreach>
+    </target>
+
+    <target name="verify-deploydir">
+        <if>
+            <not>
+                <available file="${project.deploydir}/app/Mage.php" type="file" followSymlinks="true"/>
+            </not>
+            <then>
+                <fail message="The deploy dir (${project.deploydir}) does not seem to contain a valid base Magento install."/>
+            </then>
+        </if>
+    </target>
+
+    <target name="relink-deployment" depends="verify-deploydir">
+        <lokey-resolvepath propertyName="relink.src" path="${project.basedir}"/>
+        <lokey-resolvepath propertyName="relink.dest" path="${project.deploydir}"/>
+        <exec dir="${relink.dest}" command="find -type l -exec rm {} \;"/>
+        <lokey-symlink link="${relink.dest}">
+            <fileset dir="${relink.src}">
+                <include name="robots.txt"/>
+                <include name="js/*"/>
+                <include name="lib/*"/>
+                <include name="shell/*"/>
+                <include name="errors/*"/>
+                <include name="media/*"/>
+                <include name="app/code/*/*/*"/>
+                <include name="app/locale/*/**"/>
+                <include name="app/etc/local.xml"/>
+                <include name="app/etc/local.xml.phpunit"/>
+                <include name="app/etc/modules/*.xml"/>
+                <include name="skin/frontend/*/*"/>
+                <include name="skin/adminhtml/*/*"/>
+                <include name="app/design/frontend/*/*/*/*"/>
+                <include name="app/design/adminhtml/*/*/*/*"/>
+            </fileset>
+        </lokey-symlink>
+    </target>
+
+    <target name="flush-cache" depends="verify-deploydir">
+        <delete dir="${project.deploydir}/var/cache"/>
+        <delete dir="${project.deploydir}/var/full_page_cache"/>
+        <delete dir="${project.deploydir}/var/phpunit.cache"/>
+    </target>
+
+    <target name="extract-base-for-ide">
+        <fail unless="project.magento_base" message="The workspace property MUST be set"/>
+        <lokey-resolvepath propertyName="project.magento_base" path="${project.magento_base}"/>
+        <phingcall target="reset">
+            <!-- Force the project.deploydir to be the same as project.magento_base so we can extract the archive and apply patches for IDE completion -->
+            <property name="project.deploydir" value="${project.magento_base}" override="true"/>
+        </phingcall>
+    </target>
+
+    <!-- utility targets -->
+    <target name="apply-patch">
+        <!-- This assumes the patch file paths have a prefix that needs to be removed: a/some/path should become some/path -->
+        <patch patchfile="${patch.abspath}" dir="${project.deploydir}" strip="1" haltonfailure="true"/>
+    </target>
+</project>

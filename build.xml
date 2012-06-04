@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<project name="Magento Build" default="flush-cache" basedir="..">
+    <!-- This build file is just to hide all targets that shouldn't be directly callable -->
+    <target name="rebuild">
+        <phing buildfile="${project.basedir}/build/common.xml" target="rebuild"/>
+    </target>
+    <target name="relink">
+        <phing buildfile="${project.basedir}/build/common.xml" target="relink"/>
+    </target>
+    <target name="flush-cache">
+        <phing buildfile="${project.basedir}/build/common.xml" target="flush-cache"/>
+    </target>
+    <target name="extract-base-for-ide">
+        <phing buildfile="${project.basedir}/build/common.xml" target="extract-base-for-ide"/>
+    </target>
+</project>
